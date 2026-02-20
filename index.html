@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三角函數視覺化學習 - Trigonometric Functions Animation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', '微軟雅黑', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            z-index: 100;
+            min-width: 280px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-label {
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        button {
+            background: linear-gradient(45deg, #FF6B6B, #FF8E8E);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            margin-right: 10px;
+            margin-bottom: 5px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+        }
+
+        button.active {
+            background: linear-gradient(45deg, #4ECDC4, #44A08D);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+
+        .toggle-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .toggle-buttons button {
+            flex: 1;
+            min-width: 80px;
+            margin: 0;
+        }
+
+        #angleDisplay {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 10px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .color-legend {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 10px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 3px;
+            margin-right: 5px;
+        }
+
+        .sin-color { background: #FF6B6B; }
+        .cos-color { background: #4ECDC4; }
+        .tan-color { background: #45B7D1; }
+
+        @media (max-width: 768px) {
+            #controls {
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                min-width: auto;
+                max-width: calc(100vw - 20px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="controls">
+            <div class="control-group">
+                <button id="playPause">暫停</button>
+                <button id="reset">重置</button>
+            </div>
+            
+            <div class="control-group">
+                <label class="control-label">動畫速度</label>
+                <input type="range" id="speedSlider" min="0.1" max="3" value="1" step="0.1">
+            </div>
+            
+            <div class="control-group">
+                <label class="control-label">顯示選項</label>
+                <div class="toggle-buttons">
+                    <button id="toggleSin" class="active">sin</button>
+                    <button id="toggleCos" class="active">cos</button>
+                    <button id="toggleTan" class="active">tan</button>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <div id="angleDisplay">
+                    <div>角度: <span id="degrees">0°</span></div>
+                    <div>弧度: <span id="radians">0.00</span></div>
+                </div>
+            </div>
+
+            <div class="color-legend">
+                <div class="legend-item">
+                    <div class="legend-color sin-color"></div>
+                    <span>正弦 (sin)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color cos-color"></div>
+                    <span>餘弦 (cos)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color tan-color"></div>
+                    <span>正切 (tan)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局變數
+        let scene, camera, renderer, animationId;
+        let angle = 0;
+        let speed = 1;
+        let isPlaying = true;
+        
+        // 顯示切換
+        let showSin = true, showCos = true, showTan = true;
+        
+        // Three.js 物件
+        let circleGroup, waveGroup, triangleGroup;
+        let movingPoint, sinProjection, cosProjection, tanProjection;
+        let sinWave, cosWave, tanWave;
+        let triangleSides = {};
+        let labels = {};
+        
+        // 波形數據
+        let sinWavePoints = [], cosWavePoints = [], tanWavePoints = [];
+        const maxWavePoints = 200;
+        
+        // 顏色定義
+        const colors = {
+            sin: 0xFF6B6B,
+            cos: 0x4ECDC4,
+            tan: 0x45B7D1,
+            circle: 0xFFFFFF,
+            axes: 0xCCCCCC,
+            point: 0xFFD93D
+        };
+
+        function init() {
+            // 創建場景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+            
+            // 創建相機
+            const aspect = window.innerWidth / window.innerHeight;
+            camera = new THREE.OrthographicCamera(
+                -8 * aspect, 8 * aspect, 8, -8, 0.1, 1000
+            );
+            camera.position.z = 5;
+            
+            // 創建渲染器
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.getElementById('container').appendChild(renderer.domElement);
+            
+            createScene();
+            setupControls();
+            animate();
+            
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function createScene() {
+            // 創建圓形和波形群組
+            circleGroup = new THREE.Group();
+            waveGroup = new THREE.Group();
+            triangleGroup = new THREE.Group();
+            
+            scene.add(circleGroup);
+            scene.add(waveGroup);
+            scene.add(triangleGroup);
+            
+            createCircle();
+            createAxes();
+            createMovingPoint();
+            createProjections();
+            createWaves();
+            createTriangle();
+            createLabels();
+        }
+
+        function createCircle() {
+            // 單位圓
+            const circleGeometry = new THREE.RingGeometry(1.95, 2.05, 64);
+            const circleMaterial = new THREE.MeshBasicMaterial({ 
+                color: colors.circle, 
+                transparent: true, 
+                opacity: 0.8 
+            });
+            const circle = new THREE.Mesh(circleGeometry, circleMaterial);
+            circleGroup.add(circle);
+        }
+
+        function createAxes() {
+            const axesMaterial = new THREE.LineBasicMaterial({ 
+                color: colors.axes, 
+                transparent: true, 
+                opacity: 0.6 
+            });
+            
+            // X軸
+            const xAxisGeometry = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(-3, 0, 0),
+                new THREE.Vector3(8, 0, 0)
+            ]);
+            const xAxis = new THREE.Line(xAxisGeometry, axesMaterial);
+            scene.add(xAxis);
+            
+            // Y軸
+            const yAxisGeometry = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, -3, 0),
+                new THREE.Vector3(0, 3, 0)
+            ]);
+            const yAxis = new THREE.Line(yAxisGeometry, axesMaterial);
+            scene.add(yAxis);
+            
+            // 網格線
+            for (let i = -2; i <= 2; i++) {
+                if (i === 0) continue;
+                
+                // 垂直網格線
+                const vGridGeometry = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(i, -3, 0),
+                    new THREE.Vector3(i, 3, 0)
+                ]);
+                const vGrid = new THREE.Line(vGridGeometry, axesMaterial);
+                scene.add(vGrid);
+                
+                // 水平網格線
+                const hGridGeometry = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(-3, i, 0),
+                    new THREE.Vector3(8, i, 0)
+                ]);
+                const hGrid = new THREE.Line(hGridGeometry, axesMaterial);
+                scene.add(hGrid);
+            }
+        }
+
+        function createMovingPoint() {
+            const pointGeometry = new THREE.SphereGeometry(0.08, 16, 16);
+            const pointMaterial = new THREE.MeshBasicMaterial({ color: colors.point });
+            movingPoint = new THREE.Mesh(pointGeometry, pointMaterial);
+            circleGroup.add(movingPoint);
+        }
+
+        function createProjections() {
+            // Sin 投影 (Y軸)
+            const sinGeometry = new THREE.SphereGeometry(0.06, 16, 16);
+            const sinMaterial = new THREE.MeshBasicMaterial({ color: colors.sin });
+            sinProjection = new THREE.Mesh(sinGeometry, sinMaterial);
+            circleGroup.add(sinProjection);
+            
+            // Cos 投影 (X軸)
+            const cosGeometry = new THREE.SphereGeometry(0.06, 16, 16);
+            const cosMaterial = new THREE.MeshBasicMaterial({ color: colors.cos });
+            cosProjection = new THREE.Mesh(cosGeometry, cosMaterial);
+            circleGroup.add(cosProjection);
+            
+            // Tan 投影 (切線)
+            const tanGeometry = new THREE.SphereGeometry(0.06, 16, 16);
+            const tanMaterial = new THREE.MeshBasicMaterial({ color: colors.tan });
+            tanProjection = new THREE.Mesh(tanGeometry, tanMaterial);
+            circleGroup.add(tanProjection);
+        }
+
+        function createWaves() {
+            // Sin 波形
+            const sinWaveGeometry = new THREE.BufferGeometry();
+            const sinWaveMaterial = new THREE.LineBasicMaterial({ 
+                color: colors.sin, 
+                linewidth: 3 
+            });
+            sinWave = new THREE.Line(sinWaveGeometry, sinWaveMaterial);
+            waveGroup.add(sinWave);
+            
+            // Cos 波形
+            const cosWaveGeometry = new THREE.BufferGeometry();
+            const cosWaveMaterial = new THREE.LineBasicMaterial({ 
+                color: colors.cos, 
+                linewidth: 3 
+            });
+            cosWave = new THREE.Line(cosWaveGeometry, cosWaveMaterial);
+            waveGroup.add(cosWave);
+            
+            // Tan 波形
+            const tanWaveGeometry = new THREE.BufferGeometry();
+            const tanWaveMaterial = new THREE.LineBasicMaterial({ 
+                color: colors.tan, 
+                linewidth: 3 
+            });
+            tanWave = new THREE.Line(tanWaveGeometry, tanWaveMaterial);
+            waveGroup.add(tanWave);
+        }
+
+        function createTriangle() {
+            // 三角形邊線材質
+            const radiusMaterial = new THREE.LineBasicMaterial({ 
+                color: colors.point, 
+                linewidth: 2 
+            });
+            const sinMaterial = new THREE.LineBasicMaterial({ 
+                color: colors.sin, 
+                linewidth: 2 
+            });
+            const cosMaterial = new THREE.LineBasicMaterial({ 
+                color: colors.cos, 
+                linewidth: 2 
+            });
+            
+            // 半徑 (斜邊)
+            const radiusGeometry = new THREE.BufferGeometry();
+            triangleSides.radius = new THREE.Line(radiusGeometry, radiusMaterial);
+            triangleGroup.add(triangleSides.radius);
+            
+            // 對邊 (sin)
+            const sinSideGeometry = new THREE.BufferGeometry();
+            triangleSides.opposite = new THREE.Line(sinSideGeometry, sinMaterial);
+            triangleGroup.add(triangleSides.opposite);
+            
+            // 鄰邊 (cos)
+            const cosSideGeometry = new THREE.BufferGeometry();
+            triangleSides.adjacent = new THREE.Line(cosSideGeometry, cosMaterial);
+            triangleGroup.add(triangleSides.adjacent);
+        }
+
+        function createLabels() {
+            // 創建文本標籤的平面幾何
+            // 注意：在實際應用中，你可能需要使用 HTML 標籤或 Canvas 紋理來創建文字
+            // 這裡我們使用簡化的方法，通過 HTML 元素疊加來顯示標籤
+        }
+
+        function updatePositions() {
+            const x = Math.cos(angle) * 2;
+            const y = Math.sin(angle) * 2;
+            const tanValue = Math.tan(angle);
+            
+            // 更新移動點位置
+            movingPoint.position.set(x, y, 0);
+            
+            // 更新投影點
+            sinProjection.position.set(0, y, 0);
+            cosProjection.position.set(x, 0, 0);
+            
+            // Tan 投影到 x=1 的切線上，但要限制範圍避免無窮大
+            const tanY = Math.abs(tanValue) > 10 ? (tanValue > 0 ? 10 : -10) : tanValue;
+            tanProjection.position.set(1, tanY, 0);
+            
+            // 更新三角形
+            triangleSides.radius.geometry.setFromPoints([
+                new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(x, y, 0)
+            ]);
+            
+            triangleSides.opposite.geometry.setFromPoints([
+                new THREE.Vector3(x, 0, 0),
+                new THREE.Vector3(x, y, 0)
+            ]);
+            
+            triangleSides.adjacent.geometry.setFromPoints([
+                new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(x, 0, 0)
+            ]);
+            
+            // 更新波形
+            updateWaves();
+            
+            // 更新角度顯示
+            updateAngleDisplay();
+        }
+
+        function updateWaves() {
+            const waveX = 3 + (angle % (4 * Math.PI)) / Math.PI * 2;
+            
+            // 添加新的波形點
+            sinWavePoints.push(new THREE.Vector3(waveX, Math.sin(angle), 0));
+            cosWavePoints.push(new THREE.Vector3(waveX, Math.cos(angle), 0));
+            
+            const tanValue = Math.tan(angle);
+            const tanY = Math.abs(tanValue) > 10 ? (tanValue > 0 ? 10 : -10) : tanValue;
+            tanWavePoints.push(new THREE.Vector3(waveX, tanY, 0));
+            
+            // 限制點數量
+            if (sinWavePoints.length > maxWavePoints) {
+                sinWavePoints.shift();
+                cosWavePoints.shift();
+                tanWavePoints.shift();
+            }
+            
+            // 更新幾何體
+            if (showSin) {
+                sinWave.geometry.setFromPoints(sinWavePoints);
+                sinWave.visible = true;
+            } else {
+                sinWave.visible = false;
+            }
+            
+            if (showCos) {
+                cosWave.geometry.setFromPoints(cosWavePoints);
+                cosWave.visible = true;
+            } else {
+                cosWave.visible = false;
+            }
+            
+            if (showTan) {
+                tanWave.geometry.setFromPoints(tanWavePoints);
+                tanWave.visible = true;
+            } else {
+                tanWave.visible = false;
+            }
+        }
+
+        function updateAngleDisplay() {
+            const degrees = ((angle * 180 / Math.PI) % 360).toFixed(0);
+            const radians = (angle % (2 * Math.PI)).toFixed(2);
+            
+            document.getElementById('degrees').textContent = degrees + '°';
+            document.getElementById('radians').textContent = radians;
+        }
+
+        function updateVisibility() {
+            // 更新投影點可見性
+            sinProjection.visible = showSin;
+            cosProjection.visible = showCos;
+            tanProjection.visible = showTan;
+            
+            // 更新三角形邊線可見性
+            triangleSides.opposite.visible = showSin;
+            triangleSides.adjacent.visible = showCos;
+        }
+
+        function setupControls() {
+            // 播放/暫停按鈕
+            document.getElementById('playPause').addEventListener('click', function() {
+                isPlaying = !isPlaying;
+                this.textContent = isPlaying ? '暫停' : '播放';
+            });
+            
+            // 重置按鈕
+            document.getElementById('reset').addEventListener('click', function() {
+                angle = 0;
+                sinWavePoints = [];
+                cosWavePoints = [];
+                tanWavePoints = [];
+                updatePositions();
+            });
+            
+            // 速度滑桿
+            document.getElementById('speedSlider').addEventListener('input', function() {
+                speed = parseFloat(this.value);
+            });
+            
+            // 顯示切換按鈕
+            document.getElementById('toggleSin').addEventListener('click', function() {
+                showSin = !showSin;
+                this.classList.toggle('active');
+                updateVisibility();
+            });
+            
+            document.getElementById('toggleCos').addEventListener('click', function() {
+                showCos = !showCos;
+                this.classList.toggle('active');
+                updateVisibility();
+            });
+            
+            document.getElementById('toggleTan').addEventListener('click', function() {
+                showTan = !showTan;
+                this.classList.toggle('active');
+                updateVisibility();
+            });
+        }
+
+        function animate() {
+            animationId = requestAnimationFrame(animate);
+            
+            if (isPlaying) {
+                angle += 0.02 * speed;
+            }
+            
+            updatePositions();
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            const aspect = window.innerWidth / window.innerHeight;
+            
+            camera.left = -8 * aspect;
+            camera.right = 8 * aspect;
+            camera.updateProjectionMatrix();
+            
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // 初始化應用
+        init();
+    </script>
+</body>
+</html>

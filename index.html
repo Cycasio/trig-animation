@@ -14,53 +14,57 @@
 
         body {
             font-family: 'Microsoft YaHei', '微軟雅黑', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             overflow: hidden;
             height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
 
         #container {
             position: relative;
-            width: 100vw;
-            height: 100vh;
+            flex: 1;
+            min-height: 0;
         }
 
         #controls {
-            position: absolute;
-            top: 20px;
-            left: 20px;
             background: rgba(255, 255, 255, 0.95);
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            padding: 12px 16px;
             z-index: 100;
-            min-width: 280px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
 
         .control-group {
-            margin-bottom: 15px;
+            margin-bottom: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .control-label {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: bold;
             color: #333;
-            margin-bottom: 8px;
+            margin-bottom: 0;
             display: block;
+            white-space: nowrap;
         }
 
         button {
             background: linear-gradient(45deg, #FF6B6B, #FF8E8E);
             color: white;
             border: none;
-            padding: 12px 20px;
-            border-radius: 25px;
+            padding: 8px 14px;
+            border-radius: 20px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: bold;
             transition: all 0.3s ease;
-            margin-right: 10px;
-            margin-bottom: 5px;
+            margin: 0;
         }
 
         button:hover {
@@ -73,35 +77,35 @@
         }
 
         input[type="range"] {
-            width: 100%;
-            margin: 5px 0;
+            width: 120px;
+            margin: 0;
         }
 
         .toggle-buttons {
             display: flex;
-            flex-wrap: wrap;
-            gap: 5px;
+            gap: 4px;
         }
 
         .toggle-buttons button {
-            flex: 1;
-            min-width: 80px;
-            margin: 0;
+            min-width: 50px;
+            padding: 6px 12px;
+            font-size: 12px;
         }
 
         #angleDisplay {
             background: linear-gradient(45deg, #667eea, #764ba2);
             color: white;
-            padding: 10px;
+            padding: 6px 14px;
             border-radius: 10px;
             text-align: center;
             font-weight: bold;
+            font-size: 13px;
+            white-space: nowrap;
         }
 
         .color-legend {
             display: flex;
-            justify-content: space-around;
-            margin-top: 10px;
+            gap: 10px;
         }
 
         .legend-item {
@@ -124,12 +128,18 @@
 
         @media (max-width: 768px) {
             #controls {
-                top: 10px;
-                left: 10px;
-                right: 10px;
-                min-width: auto;
-                max-width: calc(100vw - 20px);
+                padding: 10px;
+                gap: 8px;
+                justify-content: center;
             }
+            input[type="range"] {
+                width: 80px;
+            }
+            #angleDisplay {
+                font-size: 12px;
+                padding: 4px 10px;
+            }
+            #angleDisplay > div { display: inline; margin-right: 8px; }
         }
     </style>
 </head>
@@ -157,24 +167,15 @@
             
             <div class="control-group">
                 <div id="angleDisplay">
-                    <div>角度: <span id="degrees">0°</span></div>
-                    <div>弧度: <span id="radians">0.00</span></div>
+                    <span>角度: <span id="degrees">0°</span></span>
+                    <span style="margin-left:8px">弧度: <span id="radians">0.00</span></span>
                 </div>
             </div>
 
             <div class="color-legend">
-                <div class="legend-item">
-                    <div class="legend-color sin-color"></div>
-                    <span>正弦 (sin)</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color cos-color"></div>
-                    <span>餘弦 (cos)</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color tan-color"></div>
-                    <span>正切 (tan)</span>
-                </div>
+                <div class="legend-item"><div class="legend-color sin-color"></div><span>sin</span></div>
+                <div class="legend-item"><div class="legend-color cos-color"></div><span>cos</span></div>
+                <div class="legend-item"><div class="legend-color tan-color"></div><span>tan</span></div>
             </div>
         </div>
     </div>
@@ -216,7 +217,10 @@
             scene.background = new THREE.Color(0x1a1a2e);
             
             // 創建相機
-            const aspect = window.innerWidth / window.innerHeight;
+            const container = document.getElementById('container');
+            const cw = container.clientWidth;
+            const ch = container.clientHeight;
+            const aspect = cw / ch;
             camera = new THREE.OrthographicCamera(
                 -8 * aspect, 8 * aspect, 8, -8, 0.1, 1000
             );
@@ -224,9 +228,9 @@
             
             // 創建渲染器
             renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setSize(cw, ch);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            document.getElementById('container').appendChild(renderer.domElement);
+            container.appendChild(renderer.domElement);
             
             createScene();
             setupControls();
@@ -556,13 +560,16 @@
         }
 
         function onWindowResize() {
-            const aspect = window.innerWidth / window.innerHeight;
+            const container = document.getElementById('container');
+            const cw = container.clientWidth;
+            const ch = container.clientHeight;
+            const aspect = cw / ch;
             
             camera.left = -8 * aspect;
             camera.right = 8 * aspect;
             camera.updateProjectionMatrix();
             
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setSize(cw, ch);
         }
 
         // 初始化應用
